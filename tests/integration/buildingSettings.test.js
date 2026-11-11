@@ -32,7 +32,7 @@ describe('Building Settings & RBAC Integration Tests (OWNER vs MANAGER)', () => 
       expect(response.body.data.setting).toBeDefined();
     });
 
-    test('PUT /api/admin/buildings/:buildingId/settings - MANAGER พยายามอัปเดต ต้องโดนปฏิเสธด้วย HTTP 403 Forbidden', async () => {
+    test('PUT /api/admin/buildings/:buildingId/settings - MANAGER อัปเดตค่าน้ำ-ไฟได้ (200 OK)', async () => {
       const response = await request(app)
         .put(`/api/admin/buildings/${testBuilding.id}/settings`)
         .set('Authorization', `Bearer ${managerToken}`)
@@ -41,9 +41,10 @@ describe('Building Settings & RBAC Integration Tests (OWNER vs MANAGER)', () => 
           electricRate: 10.00
         });
 
-      expect(response.statusCode).toBe(403);
-      expect(response.body.success).toBe(false);
-      expect(response.body.message).toContain('ไม่มีสิทธิ์');
+      expect(response.statusCode).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(parseFloat(response.body.data.setting.waterRate)).toBe(25.00);
+      expect(parseFloat(response.body.data.setting.electricRate)).toBe(10.00);
     });
 
     test('PUT /api/admin/buildings/:buildingId/settings - OWNER อัปเดตตั้งค่า 4 หมวดหมู่ ผ่านฉลุย HTTP 200 OK', async () => {

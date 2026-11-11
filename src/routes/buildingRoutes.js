@@ -30,9 +30,9 @@ router.post('/:buildingId/invoices/publish', requireRole('admin'), (req, res, ne
 // Financial Report Export (CSV)
 router.get('/:buildingId/reports/monthly-csv', requireRole('admin'), (req, res, next) => buildingController.exportMonthlyCsv(req, res, next));
 
-// Settings PUT, POST & DELETE Endpoints (RESTRICTED to OWNER & super_admin ONLY!)
+// Settings PUT (admin/manager allowed, same as GET above) — create/delete stay OWNER & super_admin ONLY!
 router.post('/', requireRole('OWNER', 'super_admin'), (req, res, next) => buildingController.createBuilding(req, res, next));
-router.put('/:buildingId/settings', requireRole('OWNER', 'super_admin'), (req, res, next) => buildingController.updateBuildingSetting(req, res, next));
+router.put('/:buildingId/settings', requireRole('admin'), (req, res, next) => buildingController.updateBuildingSetting(req, res, next));
 router.delete('/:id', requireRole('OWNER', 'super_admin'), (req, res, next) => buildingController.deleteBuilding(req, res, next));
 
 module.exports = router;
