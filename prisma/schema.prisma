@@ -1274,3 +1274,46 @@ model Vendor {
   @@map("vendors")
 }
 
+/// บันทึกการเรียก API ทุก request (metadata เท่านั้น — ห้ามเก็บ body/query/header เพราะมี PIN, เบอร์โทร, token)
+/// ต่างจาก AuditLog ที่เก็บ "ใครแก้ข้อมูลอะไร" ของแอดมิน
+model ApiLog {
+  id String @id @default(uuid()) @db.Uuid
+
+  /// HTTP method (GET, POST, ...)
+  method String
+
+  /// path ที่เรียก ไม่รวม query string (query อาจมี token/เบอร์โทร)
+  path String
+
+  /// HTTP status ที่ตอบกลับ
+  statusCode Int @map("status_code")
+
+  /// เวลาที่ใช้ตอบ (มิลลิวินาที)
+  durationMs Int @map("duration_ms")
+
+  /// code ใน response body เมื่อมี (เช่น LINE_TOKEN_INVALID, TOKEN_EXPIRED) ไว้ค้นสาเหตุ error
+  errorCode String? @map("error_code")
+
+  /// ผู้เรียก (req.user.id) ไม่ใช่ FK เพราะ log ต้องอยู่ต่อแม้ลบผู้ใช้ และไม่อยากให้ลบผู้ใช้ต้องกวาด log
+  userId String? @map("user_id")
+
+  /// role ของผู้เรียกตอนนั้น
+  role String?
+
+  /// ตึกที่ request นี้ถูกจำกัดขอบเขตไว้ (ถ้ามี)
+  buildingId String? @map("building_id")
+
+  /// IP ของผู้เรียก (ผ่าน trust proxy)
+  ip String?
+
+  /// User-Agent (ตัดที่ 255 ตัวอักษร)
+  userAgent String? @map("user_agent")
+
+  /// วันเวลาที่ request เสร็จ
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([statusCode, createdAt])
+  @@index([userId, createdAt])
+  @@map("api_logs")
+}

@@ -10,6 +10,7 @@ const config = require('./config/env');
 const routes = require('./routes');
 const { jsonReplacer } = require('./utils/secrets');
 const { notFoundHandler, errorHandler } = require('./middlewares/errorMiddleware');
+const apiLogMiddleware = require('./middlewares/apiLogMiddleware');
 
 const app = express();
 
@@ -78,6 +79,9 @@ app.use(
     etag: true
   })
 );
+
+// บันทึกทุก request ลง api_logs (หลัง static เพื่อไม่ log ไฟล์ /uploads, ข้ามตอนเทสต์ไม่ให้เขียน DB ทุก request)
+if (config.nodeEnv !== 'test') app.use(apiLogMiddleware);
 
 app.use('/', routes);
 
