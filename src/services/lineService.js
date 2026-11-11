@@ -697,7 +697,7 @@ class LineService {
     // Fallback: หากลูกบ้านไม่ได้ใช้ LINE ให้ส่ง SMS จำลองแทน
     if (!invoice.tenant?.lineUserId) {
       const recipientPhone = invoice.tenant?.phone;
-      const smsText = `[Horspace] ใบแจ้งหนี้ประจำเดือน ${invoice.billingCycle || ''} ห้อง ${invoice.room?.roomNumber || ''} ยอดรวม ${totalStr} บาท ตรวจสอบบิลได้ที่ https://horspace.app/web/login`;
+      const smsText = `[Horspace] ใบแจ้งหนี้ประจำเดือน ${invoice.billingCycle || ''} ห้อง ${invoice.room?.roomNumber || ''} ยอดรวม ${totalStr} บาท กรุณาเพิ่มเพื่อน LINE Official Account ของหอพักเพื่อตรวจสอบบิล`;
 
       return await this.sendSmsFallbackNotification({
         phone: recipientPhone,
@@ -769,7 +769,7 @@ class LineService {
     // Fallback: หากลูกบ้านไม่ได้ใช้ LINE ให้ส่ง SMS จำลองแทน
     if (!invoice.tenant?.lineUserId) {
       const recipientPhone = invoice.tenant?.phone;
-      const smsText = `[Horspace] แจ้งเตือนค้างชำระค่าเช่าห้อง ${invoice.room?.roomNumber || ''} รอบ ${invoice.billingCycle || ''} ยอดรวม ${totalStr} บาท กรุณาชำระที่ https://horspace.app/web/login`;
+      const smsText = `[Horspace] แจ้งเตือนค้างชำระค่าเช่าห้อง ${invoice.room?.roomNumber || ''} รอบ ${invoice.billingCycle || ''} ยอดรวม ${totalStr} บาท กรุณาเพิ่มเพื่อน LINE Official Account ของหอพักเพื่อชำระเงิน`;
 
       return await this.sendSmsFallbackNotification({
         phone: recipientPhone,
