@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const app = require('../../src/app');
 const prisma = require('../../src/config/prisma');
 const env = require('../../src/config/env');
+const authService = require('../../src/services/authService');
 
 // เฟส 3: refresh token, การยึดบัญชีด้วยเบอร์โทร, production config guard, ตัด Google login
 describe('Auth hardening (Phase 3)', () => {
@@ -14,7 +15,6 @@ describe('Auth hardening (Phase 3)', () => {
   const cookieOf = (res) => (res.headers['set-cookie'] || []).find((c) => c.startsWith('refreshToken=')).split(';')[0];
   const loginAdmin = (email) => request(app).post('/auth/login').send({ email, password: PASSWORD });
   const refresh = (cookie) => request(app).post('/auth/refresh').set('Cookie', cookie);
-  const webLogin = (phone, pin) => request(app).post('/auth/web/login').send({ phone, pin });
   const makeTenant = (n, data = {}) => prisma.tenant.create({ data: { firstName: `T${n}`, lastName: tag, phone: `0830000${String(n).padStart(3, '0')}`, ...data } });
 
   beforeAll(async () => {
@@ -82,15 +82,6 @@ describe('Auth hardening (Phase 3)', () => {
       expect(await prisma.refreshToken.count({ where: { userId: temp.id } })).toBe(0);
     });
 
-    test('ผู้เช่าเว็บต่ออายุแล้วได้ claims ครบ (tenantId/role) ไม่ใช่แค่ id เหมือนเดิม', async () => {
-      const login = await webLogin(webTenant.phone, '123456');
-      expect(login.statusCode).toBe(200);
-
-      const res = await refresh(cookieOf(login));
-      expect(res.statusCode).toBe(200);
-      const claims = jwt.decode(res.body.accessToken);
-      expect(claims).toMatchObject({ id: webTenant.id, tenantId: webTenant.id, role: 'tenant' });
-    });
   });
 
   describe('ยึดบัญชีด้วยเบอร์โทร (PIN / verify-phone)', () => {
@@ -135,7 +126,7 @@ describe('Auth hardening (Phase 3)', () => {
 
     test('verify-phone ด้วย JWT ของผู้เช่าคนอื่นโดยไม่มี LINE ที่ยืนยันแล้ว ต้องถูกปฏิเสธ (เดิมรับ Token ของเหยื่อได้)', async () => {
       const victim = await makeTenant(5);
-      const attackerJwt = (await webLogin(webTenant.phone, '123456')).body.accessToken;
+      const attackerJwt = authService.generateAccessToken({ id: webTenant.id, role: 'tenant', phone: webTenant.phone, tenantId: webTenant.id });
 
       const res = await request(app).post('/api/v1/liff/auth/verify-phone').set('Authorization', `Bearer ${attackerJwt}`).send({ phone: victim.phone });
       expect(res.statusCode).toBe(401);

@@ -617,7 +617,7 @@ class TenantAuthService {
   }
 
   /**
-   * เข้าสู่ระบบด้วยเบอร์โทรศัพท์และรหัสผ่าน (Local Password Login) — รองรับทั้ง Tenant และ Admin/Staff (User)
+   * เข้าสู่ระบบด้วยเบอร์โทรศัพท์และรหัสผ่าน (Admin/Staff Local Password Login)
    */
   async loginLocal({ rawPhone, password }) {
     if (!rawPhone || !password) {
@@ -626,42 +626,6 @@ class TenantAuthService {
 
     const possiblePhones = getPhoneVariants(rawPhone);
 
-    // 1. ค้นหาในตาราง Tenant ก่อน
-    const tenant = await prisma.tenant.findFirst({ where: { phone: { in: possiblePhones } }, include: TENANT_ROOM_INCLUDE });
-
-    if (tenant) {
-      if (!tenant.passwordHash) {
-        return {
-          statusCode: 400,
-          body: { success: false, code: 'PASSWORD_NOT_SET', message: 'คุณยังไม่ได้ตั้งรหัสผ่าน กรุณาเข้าสู่ระบบด้วย LINE เพื่อตั้งค่ารหัสผ่าน' }
-        };
-      }
-
-      const isMatch = await verifyWithLimit(tenant.id, () => bcrypt.compare(password, tenant.passwordHash));
-      if (isMatch === null) return LOCKED_RESPONSE;
-      if (!isMatch) {
-        return { statusCode: 401, body: { success: false, message: 'เบอร์โทรศัพท์หรือรหัสผ่านไม่ถูกต้อง' } };
-      }
-
-      const tenantUser = await buildTenantUserPayload(tenant);
-      const { accessToken, refreshToken } = await issueTokens(tenantUser);
-
-      return {
-        statusCode: 200,
-        refreshToken,
-        body: {
-          success: true,
-          message: 'เข้าสู่ระบบสำเร็จ (Local Password Login Success)',
-          accessToken,
-          token: accessToken,
-          user: tenantUser,
-          tenant,
-          data: { accessToken, token: accessToken, user: tenantUser, tenant }
-        }
-      };
-    }
-
-    // 2. ค้นหาในตาราง User (สำหรับ Admin/Staff)
     const user = await prisma.user.findFirst({
       where: { OR: [{ phone: { in: possiblePhones } }, { email: rawPhone.trim().toLowerCase() }] }
     });
@@ -703,133 +667,6 @@ class TenantAuthService {
     }
 
     return { statusCode: 401, body: { success: false, message: 'เบอร์โทรศัพท์หรือรหัสผ่านไม่ถูกต้อง' } };
-  }
-
-  /**
-   * ตั้งค่ารหัสผ่านใหม่หรือเปลี่ยนรหัสผ่านสำหรับลูกบ้าน
-   */
-  async setupPassword({ newPassword, oldPassword, tenantId, lineUserId, phone }) {
-    if (!newPassword || newPassword.length < 6) {
-      return { statusCode: 400, body: { success: false, message: 'รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร' } };
-    }
-
-    let tenant = null;
-    if (tenantId) {
-      tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
-    }
-    if (!tenant && lineUserId) {
-      tenant = await prisma.tenant.findFirst({ where: { lineUserId } });
-    }
-    if (!tenant && phone) {
-      tenant = await prisma.tenant.findFirst({ where: { phone } });
-    }
-
-    if (!tenant) {
-      return { statusCode: 404, body: { success: false, message: 'ไม่พบข้อมูลลูกบ้านสำหรับตั้งรหัสผ่าน' } };
-    }
-
-    // หากมีรหัสผ่านเดิมอยู่แล้ว ต้องระบุ oldPassword และตรวจสอบความถูกต้องเสมอ
-    if (tenant.passwordHash) {
-      if (!oldPassword) {
-        return { statusCode: 400, body: { success: false, message: 'กรุณาระบุรหัสผ่านเดิมเพื่อยืนยันตัวตน' } };
-      }
-      const isOldMatch = await bcrypt.compare(oldPassword, tenant.passwordHash);
-      if (!isOldMatch) {
-        return { statusCode: 400, body: { success: false, message: 'รหัสผ่านเดิมไม่ถูกต้อง' } };
-      }
-    }
-
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await prisma.tenant.update({ where: { id: tenant.id }, data: { passwordHash: hashedPassword } });
-
-    return {
-      statusCode: 200,
-      body: { success: true, message: 'ตั้งค่ารหัสผ่านใหม่สำเร็จเรียบร้อยแล้ว สามารถใช้เบอร์โทรศัพท์และรหัสผ่านนี้ล็อกอินได้' }
-    };
-  }
-
-  /**
-   * เข้าสู่ระบบผ่าน Web Browser ปกติ (Dual-Mode Login สำหรับลูกบ้านที่ไม่ใช้ LINE)
-   */
-  async loginWeb({ phoneNumber, pin }) {
-    if (!phoneNumber || !pin) {
-      return { statusCode: 400, body: { success: false, message: 'กรุณาระบุหมายเลขโทรศัพท์และรหัส PIN 6 หลัก' } };
-    }
-
-    const phoneConditions = getPhoneVariants(phoneNumber).map((p) => ({ phone: p }));
-
-    // ค้นหาในตาราง Tenant
-    const tenant = await prisma.tenant.findFirst({
-      where: { OR: phoneConditions },
-      include: {
-        rooms: { include: { building: { include: { setting: true } } } },
-        leaseContracts: {
-          where: { status: 'ACTIVE' },
-          include: { room: { include: { building: { include: { setting: true } } } } }
-        }
-      }
-    });
-
-    let isValidPin = false;
-    let userAccount = null;
-
-    if (tenant) {
-      const pinHash = tenant.pinHash || tenant.passwordHash;
-      if (pinHash) {
-        isValidPin = await verifyWithLimit(tenant.id, () => bcrypt.compare(String(pin).trim(), pinHash));
-      }
-    } else {
-      // Fallback: ค้นหาในตาราง User
-      userAccount = await prisma.user.findFirst({ where: { OR: phoneConditions } });
-      if (userAccount && userAccount.passwordHash) {
-        isValidPin = await verifyWithLimit(`user:${userAccount.id}`, () => bcrypt.compare(String(pin).trim(), userAccount.passwordHash));
-      }
-    }
-
-    if (isValidPin === null) return LOCKED_RESPONSE;
-
-    if (!isValidPin) {
-      return { statusCode: 401, body: { success: false, message: 'เบอร์โทรศัพท์หรือรหัส PIN ไม่ถูกต้อง' } };
-    }
-
-    // จัดเตรียม Payload และออก Dual JWT Tokens
-    const activeRoom = tenant?.rooms?.[0] || tenant?.leaseContracts?.[0]?.room || null;
-    const building = activeRoom?.building || null;
-
-    const userPayload = tenant
-      ? {
-          id: tenant.id,
-          role: 'tenant',
-          name: `${tenant.firstName} ${tenant.lastName}`.trim(),
-          phone: tenant.phone,
-          email: `${tenant.phone}@tenant.dorm.com`,
-          isTenant: true,
-          isWebLogin: true,
-          buildingId: building?.id || null
-        }
-      : {
-          id: userAccount.id,
-          role: userAccount.role || 'tenant',
-          name: userAccount.name,
-          phone: userAccount.phone,
-          email: userAccount.email,
-          isTenant: true,
-          isWebLogin: true
-        };
-
-    const accessToken = authService.generateAccessToken(userPayload);
-    const refreshToken = authService.generateRefreshToken(userPayload);
-    await authService.saveRefreshToken(userPayload.id, refreshToken);
-
-    return {
-      statusCode: 200,
-      refreshToken,
-      body: {
-        success: true,
-        message: 'เข้าสู่ระบบสำเร็จ',
-        data: { accessToken, user: userPayload, tenant: tenant || null, rooms: tenant?.rooms || [], building: building || null }
-      }
-    };
   }
 
   /**

@@ -190,26 +190,6 @@ class AuthController {
     }
   }
 
-  /**
-   * ตั้งค่ารหัสผ่านใหม่หรือเปลี่ยนรหัสผ่านสำหรับลูกบ้าน
-   * POST /api/auth/setup-password
-   */
-  async setupPassword(req, res, next) {
-    try {
-      const { newPassword, oldPassword } = req.body;
-      const result = await tenantAuthService.setupPassword({
-        newPassword,
-        oldPassword,
-        tenantId: req.tenantId || req.user?.tenantId || req.user?.id,
-        lineUserId: req.lineUserId || req.user?.lineUserId,
-        phone: req.user?.phone
-      });
-      return res.status(result.statusCode).json(result.body);
-    } catch (error) {
-      next(error);
-    }
-  }
-
   async login(req, res, next) {
     try {
       const { email, password } = req.body;
@@ -273,21 +253,6 @@ class AuthController {
         success: true,
         message: 'ออกจากระบบสำเร็จ (Refresh Token Revoked & Cookie Cleared)'
       });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * เข้าสู่ระบบผ่าน Web Browser ปกติ (Dual-Mode Login สำหรับลูกบ้านที่ไม่ใช้ LINE)
-   * POST /api/auth/web/login หรือ POST /api/v1/auth/web/login
-   */
-  async loginWeb(req, res, next) {
-    try {
-      const phoneNumber = req.body.phone_number || req.body.phone || req.body.phoneNumber;
-      const pin = req.body.pin || req.body.password;
-      const result = await tenantAuthService.loginWeb({ phoneNumber, pin });
-      return respondWithAuthResult(res, req, result);
     } catch (error) {
       next(error);
     }
