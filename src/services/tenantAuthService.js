@@ -264,12 +264,16 @@ class TenantAuthService {
 
     let lineUserId = lineUserIdFromRequest;
     let profileFromToken = null;
+    let verifyError = null;
     if (!lineUserId && rawToken) {
       try {
         const verified = await verifyLineIdToken(rawToken);
         lineUserId = verified?.sub;
         profileFromToken = { displayName: verified?.name || null, pictureUrl: verified?.picture || null };
-      } catch {}
+      } catch (error) {
+        // ไม่ตอบทันที: ถ้ามี Session JWT (tenantId) ยังไปต่อได้ แต่ถ้าไม่มี Identity อื่นเลยต้องบอกสาเหตุจริงด้านล่าง
+        verifyError = error;
+      }
     }
 
     // ⚠️ ห้ามเชื่อ lineUserId ที่ Client ส่งมาเองตรงๆ ใน body โดยไม่ผ่านการ Verify กับ LINE Platform
@@ -279,6 +283,8 @@ class TenantAuthService {
     // ก่อนอนุญาตให้ค้นหา Tenant ด้วยเบอร์โทรศัพท์เพียงอย่างเดียวแล้วเขียนทับ PIN — ไม่งั้นแค่รู้เบอร์โทรก็ Takeover บัญชีได้
     const tenantId = tenantIdFromRequest;
     if (!lineUserId && !tenantId) {
+      // token ส่งมาแต่ verify ไม่ผ่าน = LINE_TOKEN_INVALID (frontend กู้คืนด้วยการ login LINE ใหม่) ไม่ใช่ "ไม่ได้ login"
+      if (verifyError) return lineTokenInvalid(verifyError);
       return {
         statusCode: 401,
         body: { success: false, code: 'LINE_LOGIN_REQUIRED', message: 'กรุณาเข้าสู่ระบบผ่าน LINE ก่อนตั้งค่าหรือรีเซ็ต PIN' }
