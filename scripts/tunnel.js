@@ -1,6 +1,6 @@
 /**
  * รัน Cloudflare Named Tunnel (horspace-dev) สำหรับ API
- * - api.horspace.com → API (port 3000)
+ * - dev-api.horspace.com → API (port 3000)
  * - config อยู่ที่ ~/.cloudflared/config.yml
  */
 const { spawn } = require('child_process');
@@ -18,8 +18,8 @@ tunnel.stderr.on('data', (d) => {
   if (text.includes('Registered tunnel connection')) {
     console.log('\n\x1b[1m\x1b[32m' + '═'.repeat(60) + '\x1b[0m');
     console.log('\x1b[1m\x1b[32m  Tunnel Active!\x1b[0m');
-    console.log('\x1b[1m\x1b[33m  app.horspace.com\x1b[0m → Vite dev server');
-    console.log('\x1b[1m\x1b[33m  api.horspace.com\x1b[0m → API :3000');
+    console.log('\x1b[1m\x1b[33m  dev.horspace.com\x1b[0m → Vite dev server');
+    console.log('\x1b[1m\x1b[33m  dev-api.horspace.com\x1b[0m → API :3000');
     console.log('\x1b[1m\x1b[32m' + '═'.repeat(60) + '\x1b[0m\n');
   } else if (text.includes('ERR') || text.includes('error')) {
     process.stderr.write(`\x1b[31m[Tunnel]\x1b[0m ${text}`);
