@@ -364,7 +364,7 @@ class RoomController {
           floor: floor !== undefined ? Number(floor) : room.floor,
           price: price !== undefined ? Number(price) : room.price,
           status: status || room.status,
-          ownerId: ['room_owner', 'investor'].includes(userRole) ? room.ownerId : (req.body.ownerId !== undefined ? req.body.ownerId : room.ownerId),
+          ownerId: ['room_owner', 'investor'].includes(userRole) ? room.ownerId : (req.body.ownerId !== undefined ? req.body.ownerId || null : room.ownerId),
           buildingId: buildingId !== undefined ? buildingId : room.buildingId
         },
         include: {
