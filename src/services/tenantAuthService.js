@@ -6,6 +6,15 @@ const { getPhoneVariants } = require('../utils/normalizePhone');
 const attempts = require('../utils/attemptLimiter');
 const { findAdminUserByPhone, assertCanClaimByPhone } = require('../utils/phoneClaim');
 
+/**
+ * ตอบ 401 LINE_TOKEN_INVALID และ log สาเหตุจริงฝั่ง Server (หมดอายุ / คนละ Channel / ต่อ LINE ไม่ได้)
+ * เดิมทุกสาเหตุเงียบหมด แยกไม่ออกว่าเกิดจากอะไร — log เฉพาะข้อความ Error ห้าม log Token หรือ sub (ข้อมูลส่วนบุคคล)
+ */
+function lineTokenInvalid(error, message = 'LINE ID Token ไม่ถูกต้องหรือหมดอายุแล้ว') {
+  console.warn(`[LINE verify] ${error?.message || 'unknown error'}`);
+  return { statusCode: 401, body: { success: false, code: 'LINE_TOKEN_INVALID', message } };
+}
+
 const LOCKED_RESPONSE = {
   statusCode: 429,
   body: { success: false, code: 'TOO_MANY_ATTEMPTS', message: 'กรอกรหัสผิดหลายครั้งเกินไป บัญชีนี้ถูกล็อกชั่วคราว กรุณาลองใหม่อีกครั้งใน 15 นาที' }
@@ -88,8 +97,8 @@ class TenantAuthService {
         displayName: verified.name || lineDisplayName || null,
         pictureUrl: verified.picture || linePictureUrl || null
       };
-    } catch {
-      return { statusCode: 401, body: { success: false, code: 'LINE_TOKEN_INVALID', message: 'LINE ID Token ไม่ถูกต้องหรือหมดอายุแล้ว' } };
+    } catch (error) {
+      return lineTokenInvalid(error);
     }
 
     const tenant = await prisma.tenant.findFirst({ where: { lineUserId }, include: TENANT_ROOM_INCLUDE });
@@ -145,8 +154,8 @@ class TenantAuthService {
       const verified = await verifyLineIdToken(rawToken);
       lineUserId = verified?.sub;
       lineProfileData = { displayName: verified?.name || null, pictureUrl: verified?.picture || null };
-    } catch {
-      return { statusCode: 401, body: { success: false, code: 'LINE_TOKEN_INVALID', message: 'LINE ID Token ไม่ถูกต้องหรือหมดอายุแล้ว' } };
+    } catch (error) {
+      return lineTokenInvalid(error);
     }
 
     if (!lineUserId) {
@@ -422,8 +431,8 @@ class TenantAuthService {
       try {
         const verified = await verifyLineIdToken(rawToken);
         lineUserId = verified?.sub;
-      } catch {
-        return { statusCode: 401, body: { success: false, code: 'LINE_TOKEN_INVALID', message: 'LINE ID Token ไม่ถูกต้องหรือหมดอายุแล้ว' } };
+      } catch (error) {
+        return lineTokenInvalid(error);
       }
     }
 
@@ -538,8 +547,8 @@ class TenantAuthService {
         const verified = await verifyLineIdToken(rawToken);
         lineUserId = verified?.sub;
         profileFromToken = { displayName: verified?.name || null, pictureUrl: verified?.picture || null };
-      } catch {
-        return { statusCode: 401, body: { success: false, code: 'LINE_TOKEN_INVALID', message: 'LINE ID Token ไม่ถูกต้องหรือหมดอายุแล้ว' } };
+      } catch (error) {
+        return lineTokenInvalid(error);
       }
     }
 
@@ -680,8 +689,8 @@ class TenantAuthService {
       try {
         const verified = await verifyLineIdToken(lineIdToken);
         lineUserId = verified.sub;
-      } catch {
-        return { statusCode: 401, body: { success: false, code: 'LINE_TOKEN_INVALID', message: 'LINE ID Token ไม่ถูกต้องหรือหมดอายุแล้ว กรุณาเข้าสู่ระบบใหม่' } };
+      } catch (error) {
+        return lineTokenInvalid(error, 'LINE ID Token ไม่ถูกต้องหรือหมดอายุแล้ว กรุณาเข้าสู่ระบบใหม่');
       }
     }
 
@@ -759,3 +768,4 @@ class TenantAuthService {
 
 module.exports = new TenantAuthService();
 module.exports.buildTenantUserPayload = buildTenantUserPayload;
+module.exports.lineTokenInvalid = lineTokenInvalid;
