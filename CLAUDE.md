@@ -50,6 +50,7 @@ When user inputs **`update memory`**:
    - SQL migration files placed in `src/migrations/files/*.sql`
 5. **Testing Expectations**:
    - `yarn test` ต้องตั้ง `TEST_DATABASE_URL` (DB แยกชื่อลงท้าย `_test`, สร้างด้วย `prisma db push` + `npm run seed`) — `tests/setup.js` ปฏิเสธการรันถ้าไม่ตั้ง ห้ามชี้ไป DB dev หลัก (ชื่อตาม `DB_NAME`/`POSTGRES_DB` ของ environment นั้น)
+   - บนเครื่อง dev ใช้ `TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/playground_test` (DB `horspace_test` ไม่มีจริงบน local) — `securityMedium` ล้มบน main และ `hybridAuth` ไม่เสถียรอยู่ก่อนแล้ว (ดู ACTIVITY_LOG Phase 26)
    - เมื่อสร้าง Service หรือ Middleware ใหม่ ต้องสร้างไฟล์ Unit Test ใน `tests/unit/` ควบคู่กันเสมอ
    - เมื่อสร้าง Endpoint ใหม่ ต้องสร้าง Integration Test ใน `tests/integration/` ด้วย Supertest
 

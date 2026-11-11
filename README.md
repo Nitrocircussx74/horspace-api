@@ -157,6 +157,7 @@ node prisma/seed.js
 yarn dev
 
 # 5. รันเซิร์ฟเวอร์พร้อมเปิด Cloudflare Tunnel สำหรับทดสอบ LINE LIFF
+# หมายเหตุ: ถ้าเจอ 401 LINE_TOKEN_INVALID ให้ดู server log บรรทัด "[LINE verify] ..." จะบอกสาเหตุจริง (ส่วนใหญ่คือ ID Token อายุ 1 ชม. หมด ให้เปิด /liff ใหม่เพื่อ login LINE ใหม่)
 yarn dev:tunnel
 ```
 

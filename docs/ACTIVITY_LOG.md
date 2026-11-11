@@ -351,3 +351,16 @@
 - **Status**: 🟢 Live ที่ `https://horspace.com` (frontend) และ `https://api.horspace.com` (backend) บน DigitalOcean Droplet (Singapore, SGP1) — HTTPS ผ่าน Caddy + Let's Encrypt auto-renew, DB ต่อได้เฉพาะผ่าน SSH tunnel, login + silent refresh ทำงานถูกต้องแล้ว
 - **ยังไม่เสร็จ (follow-up)**: ปิด UFW port 2375/2376 (Docker remote API เปิด public อยู่ตั้งแต่ marketplace image), ตั้ง cron รัน `backup-db.sh` จริงบน droplet (เขียนสคริปต์ไว้แล้วแต่ยังไม่ตั้ง), เปิด DO Monitoring alert + สมัคร UptimeRobot, โฟลเดอร์ deploy files (`docker-compose.yml`/`Caddyfile`/`backup-db.sh`) ที่ root ยังไม่ใช่ git repo (GitHub Actions deploy workflow ที่เขียนไว้ยังรันไม่ได้จริงจนกว่าจะมี remote)
 
+---
+
+### Phase 26 (2026-11-11): `GET/PUT /rooms` พัง P2023 + วินิจฉัย `LINE_TOKEN_INVALID` ของ `link-and-login`
+
+- **อาการ 1**: `GET https://api.horspace.com/api/v1/rooms` ตอบ 500 `code: P2023` — `meta.message`: `Error creating UUID, invalid character ... found \`ไ\` at 1` (ค่าไม่ใช่ UUID ถูกส่งเข้า `where`/`data` ของ Room)
+- **Root cause 1 (ยืนยันแล้ว)**: ฟอร์มแก้ไขห้อง ตัวเลือก "ไม่มี (หอพัก/โครงการเป็นเจ้าของเอง)" (`<option :value="null">`) ผ่าน component `Select` ที่ emit `$event.target.value` เป็น string เสมอ → `ownerId = ""` ถูกส่งไป `updateRoom` ที่เขียนค่าว่างลงคอลัมน์ UUID ตรงๆ (`createRoom` ใช้ `|| null` อยู่แล้ว) ส่วนค่าภาษาไทยที่หลุดเข้า `buildingId` ยังไม่พบต้นทาง (สงสัย `localStorage.activeBuildingId` ฝั่ง frontend — ดู ACTIVITY_LOG ของ frontend Phase 28)
+- **แก้ (PR #10 `fix/room-owner-empty-uuid`)**: [roomController.js](file:///Users/user/Desktop/playgroud/playground/playground-api/src/controllers/roomController.js) `updateRoom` แปลง `ownerId` ว่างเป็น `null`; [errorMiddleware.js](file:///Users/user/Desktop/playgroud/playground/playground-api/src/middlewares/errorMiddleware.js) แปลง P2023 ที่เกิดจาก UUID ผิดรูปแบบเป็น `400 INVALID_ID` แทน 500 จุดเดียวครอบทุก endpoint (ยังไม่มี test ของสองจุดนี้)
+- **อาการ 2**: `POST /api/liff/auth/link-and-login` ตอบ `401 LINE_TOKEN_INVALID`
+- **Root cause 2 (ยืนยันจากการถอด token ที่ผู้ใช้ส่งมา)**: LINE ID Token หมดอายุ — `exp - iat = 3600s` (อายุ 1 ชม.) และตรวจตอนนั้นหมดมาแล้ว ~77 นาที (`aud` ตรงกับ `LINE_LIFF_CHANNEL_ID`, `amr: lineqr` = เปิดผ่านเบราว์เซอร์ที่ค้างหน้าไว้นาน) `liff.getIDToken()` ไม่ต่ออายุเอง; ปัญหาแยกยากเพราะ catch ทั้ง 5 จุดใน `tenantAuthService` กลืนสาเหตุจริงเป็น `LINE_TOKEN_INVALID` เหมือนกันหมด
+- **แก้ (PR #11 `fix/log-line-token-verify-reason`)**: รวมเป็น `lineTokenInvalid(error, message?)` ใน [tenantAuthService.js](file:///Users/user/Desktop/playgroud/playground/playground-api/src/services/tenantAuthService.js) ตอบ 401 เหมือนเดิม + `console.warn('[LINE verify] <ข้อความ error>')` (ไม่ log token/sub) — test: `tests/unit/services/lineTokenInvalid.test.js`
+- **สถานะ test (`yarn test` ด้วย `TEST_DATABASE_URL=...playground_test`)**: 362 ผ่าน / 2 ล้ม ที่ไม่เกี่ยวกับงานนี้ — `securityMedium` ("5xx ไม่ส่งข้อความ error ภายใน") ล้มบน main อยู่แล้ว, `hybridAuth` ไม่เสถียร (รันซ้ำคนละรอบล้มคนละข้อ)
+- **ยังไม่ทำ**: ขั้นกันฟอร์มหายตอนค้างหน้านาน (เช็ก `exp` ล่วงหน้า) และ toast เมื่อ silent-login ล้มเหลว — รอมีผู้ใช้เจอจริง (YAGNI)
+- **Status**: 🟡 PR #10, #11 เปิดแล้ว รอ merge + deploy (container `horspace-backend`) — API ที่รันบนพอร์ต 3000 ตอนนี้เป็น process เดิม ยังไม่มีโค้ดใหม่
